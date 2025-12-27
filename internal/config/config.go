@@ -23,6 +23,5 @@ func New() (*Config, error) {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal config: %w", err)
 	}
-	fmt.Println(cfg)
 	return &cfg, nil
 }
