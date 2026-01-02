@@ -1,4 +1,4 @@
-package cartRepo
+package CartRepo
 
 import (
 	"cart-api/internal/model/CartItem"
@@ -16,11 +16,15 @@ func New(db *sqlx.DB) *CartRepo {
 }
 
 // Delete SELECT INSERT
-func (r *CartRepo) CreateCart() {
-	_, err := r.DB.Exec("INSERT INTO carts")
+func (r *CartRepo) CreateCart() Carts.Carts {
+	result, err := r.DB.Exec("INSERT INTO carts RETURNING *")
 	if err != nil {
 		log.Fatal(err)
 	}
+	var cart Carts.Carts
+	lastID, _ := result.LastInsertId()
+	cart.ID = int(lastID)
+	return cart
 }
 
 func (r *CartRepo) CreateItem(item *CartItem.CartItem) {
@@ -31,7 +35,7 @@ func (r *CartRepo) CreateItem(item *CartItem.CartItem) {
 }
 
 func (r *CartRepo) DeleteItem(item CartItem.CartItem) {
-	_, err := r.DB.Exec("DELETE FROM carts WHERE cart_id = $1", item.CartId)
+	_, err := r.DB.Exec("DELETE FROM cart_item WHERE id = $1 AND cart_id = $2", item.Id, item.CartId)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,5 +62,3 @@ func (r *CartRepo) GetCart(id int) *Carts.Carts {
 	}
 	return carts
 }
-
-func (r *CartRepo) GetPrice() {}
