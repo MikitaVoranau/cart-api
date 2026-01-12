@@ -7,6 +7,6 @@ import (
 
 func main() {
 	if err := app.Run(); err != nil {
-		log.Fatalf("cannot create service %w", err)
+		log.Fatalf(err.Error())
 	}
 }

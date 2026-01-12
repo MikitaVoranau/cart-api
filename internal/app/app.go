@@ -22,8 +22,15 @@ func Run() error {
 	defer db.Close()
 	cartRepo := CartRepo.New(db)
 	cartService := services.NewCartService(cartRepo)
+	mux := http.NewServeMux()
+	fmt.Println("running")
 	cartHandler := rest.NewCartHandler(cartService)
-	if err = http.ListenAndServe("localhost:3000", cartHandler); err != nil {
+	mux.HandleFunc("DELETE /carts/{cart_id}/items/{item_id}", cartHandler.DeleteItem)
+	mux.HandleFunc("POST /carts", cartHandler.PostCart)
+	mux.HandleFunc("POST /carts/{cart_id}/items", cartHandler.PostItem)
+	mux.HandleFunc("GET /carts/{cart_id}", cartHandler.GetItems)
+	mux.HandleFunc("GET /carts/{cart_id}/price", cartHandler.GetPrice)
+	if err = http.ListenAndServe("localhost:3000", mux); err != nil {
 		return fmt.Errorf("run: cannot start server %w", err)
 	}
 	return nil

@@ -17,7 +17,7 @@ func New(db *sqlx.DB) *CartRepo {
 
 // Delete SELECT INSERT
 func (r *CartRepo) CreateCart() Carts.Carts {
-	result, err := r.DB.Exec("INSERT INTO carts RETURNING *")
+	result, err := r.DB.Exec("INSERT INTO carts DEFAULT VALUES RETURNING *")
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -5,9 +5,9 @@ import (
 	"cart-api/internal/services"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 type CartHandler struct {
@@ -20,84 +20,67 @@ func NewCartHandler(service *services.CartService) *CartHandler {
 	}
 }
 
-func (h *CartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	params := strings.Split(path, "/")
-	switch r.Method {
-	case http.MethodGet:
-		fmt.Println(params)
-		switch len(params) {
-		case 1:
-			cartID, err := strconv.Atoi(params[0])
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			carts := h.service.CartRepo.GetCart(cartID)
-			err = json.NewEncoder(w).Encode(carts)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-		case 2:
-			cartID, err := strconv.Atoi(params[0])
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			if params[1] != "price" {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			price := h.service.GetPrice(cartID)
-			err = json.NewEncoder(w).Encode(price)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-		}
-	case http.MethodPost:
-		switch len(params) {
-		case 0:
-			cart := h.service.CartRepo.CreateCart()
-			err := json.NewEncoder(w).Encode(cart)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-		case 2:
-			cartID, err := strconv.Atoi(params[0])
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			var cartItem *CartItem.CartItem
-			err = json.Unmarshal([]byte(params[1]), cartItem)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			cartItem.CartId = cartID
-			h.service.CartRepo.CreateItem(cartItem)
-		}
-	case http.MethodDelete:
-		cartID, err := strconv.Atoi(params[0])
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		cartItem, err := strconv.Atoi(params[2])
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		item := CartItem.CartItem{Id: cartItem, CartId: cartID}
-		h.service.CartRepo.DeleteItem(item)
-		err = json.NewEncoder(w).Encode(item)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
+	cartID := r.PathValue("cart_id")
+	cartItem := r.PathValue("item_id")
+	id, _ := strconv.Atoi(cartID)
+	itemID, _ := strconv.Atoi(cartItem)
+	fmt.Println(itemID)
+	item := CartItem.CartItem{Id: id, CartId: itemID}
+	h.service.CartRepo.DeleteItem(item)
+	err := json.NewEncoder(w).Encode(item)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+}
 
+func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.URL.Path)
+	cart := h.service.CartRepo.CreateCart()
+	err := json.NewEncoder(w).Encode(cart)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+}
+
+func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
+	cartID := r.PathValue("cart_id")
+	id, _ := strconv.Atoi(cartID)
+	var cartItem *CartItem.CartItem
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	err = json.Unmarshal(body, cartItem)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	cartItem.CartId = id
+	h.service.CartRepo.CreateItem(cartItem)
+}
+
+func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
+	cartID := r.PathValue("cart_id")
+	id, _ := strconv.Atoi(cartID)
+	carts := h.service.CartRepo.GetCart(id)
+	err := json.NewEncoder(w).Encode(carts)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+}
+
+func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
+	cartID := r.PathValue("cart_id")
+	id, _ := strconv.Atoi(cartID)
+	price := h.service.GetPrice(id)
+	err := json.NewEncoder(w).Encode(price)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 }
