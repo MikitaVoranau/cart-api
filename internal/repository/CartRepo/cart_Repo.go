@@ -3,6 +3,7 @@ package CartRepo
 import (
 	"cart-api/internal/model/CartItem"
 	"cart-api/internal/model/Carts"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"log"
 )
@@ -17,13 +18,8 @@ func New(db *sqlx.DB) *CartRepo {
 
 // Delete SELECT INSERT
 func (r *CartRepo) CreateCart() Carts.Carts {
-	result, err := r.DB.Exec("INSERT INTO carts DEFAULT VALUES RETURNING *")
-	if err != nil {
-		log.Fatal(err)
-	}
 	var cart Carts.Carts
-	lastID, _ := result.LastInsertId()
-	cart.ID = int(lastID)
+	_ = r.DB.QueryRow("INSERT INTO carts DEFAULT VALUES RETURNING id").Scan(&cart.ID)
 	return cart
 }
 
@@ -41,15 +37,15 @@ func (r *CartRepo) DeleteItem(item CartItem.CartItem) {
 	}
 }
 
-func (r *CartRepo) GetCart(id int) *Carts.Carts {
+func (r *CartRepo) GetCart(id int) (*Carts.Carts, error) {
 	carts := &Carts.Carts{}
-	err := r.DB.QueryRow("SELECT * FROM carts WHERE id = $1", id).Scan(&carts.ID)
+	err := r.DB.QueryRow("SELECT id FROM carts WHERE id = $1", id).Scan(&carts.ID)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("GetCart: cannot find cart with id: %d; %w", id, err)
 	}
 	rows, err := r.DB.Query("SELECT * FROM cart_item WHERE cart_id = $1", carts.ID)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("GetCart: cannot find cart Item with id: %d; %w", carts.ID, err)
 	}
 	defer rows.Close()
 
@@ -60,5 +56,5 @@ func (r *CartRepo) GetCart(id int) *Carts.Carts {
 		}
 		carts.Items = append(carts.Items, item)
 	}
-	return carts
+	return carts, nil
 }

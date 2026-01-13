@@ -3,6 +3,8 @@ package services
 import (
 	"cart-api/internal/model/Price"
 	"cart-api/internal/repository/CartRepo"
+	"fmt"
+	"math"
 )
 
 type CartService struct {
@@ -15,10 +17,12 @@ func NewCartService(cartRepo *CartRepo.CartRepo) *CartService {
 	}
 }
 
-func (cartService *CartService) GetPrice(id int) Price.Price {
-	carts := cartService.CartRepo.GetCart(id)
-
-	price := Price.Price{}
+func (cartService *CartService) GetPrice(id int) (*Price.Price, error) {
+	carts, err := cartService.CartRepo.GetCart(id)
+	if err != nil {
+		return nil, fmt.Errorf("GetPrice err: %w", err)
+	}
+	price := &Price.Price{}
 	var totalPrice float64
 	var totalNumbers int
 
@@ -34,7 +38,8 @@ func (cartService *CartService) GetPrice(id int) Price.Price {
 	if totalPrice > 5000 {
 		price.DiscountPercent = 10
 	}
-	price.FinalPrice = totalPrice * (float64(price.DiscountPercent) / 100)
+	fmt.Println(price.DiscountPercent)
+	price.FinalPrice = math.Trunc((totalPrice-totalPrice*(float64(price.DiscountPercent)/100))*100) / 100
 	price.CartId = carts.ID
-	return price
+	return price, nil
 }

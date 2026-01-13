@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 )
@@ -46,19 +47,23 @@ func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.URL.Path)
 	cartID := r.PathValue("cart_id")
 	id, _ := strconv.Atoi(cartID)
+	fmt.Println("id - ", id)
 	var cartItem *CartItem.CartItem
+	fmt.Println(r.Body)
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	err = json.Unmarshal(body, cartItem)
+	err = json.Unmarshal(body, &cartItem)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	fmt.Println("cart Item - ", cartItem)
 	cartItem.CartId = id
 	h.service.CartRepo.CreateItem(cartItem)
 }
@@ -66,8 +71,9 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
 	id, _ := strconv.Atoi(cartID)
-	carts := h.service.CartRepo.GetCart(id)
-	err := json.NewEncoder(w).Encode(carts)
+	carts, err := h.service.CartRepo.GetCart(id)
+	fmt.Println(err)
+	err = json.NewEncoder(w).Encode(carts)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -77,8 +83,11 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
 	id, _ := strconv.Atoi(cartID)
-	price := h.service.GetPrice(id)
-	err := json.NewEncoder(w).Encode(price)
+	price, err := h.service.GetPrice(id)
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	err = json.NewEncoder(w).Encode(price)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return

@@ -63,7 +63,7 @@ Should fail if:
 ```sh
 POST http://localhost:3000/carts/1/items -d '{
   "product": "Shoes",
-  "price": 2500.50
+  "price": 2500.50    
 }'
 ```
 
