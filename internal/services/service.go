@@ -20,7 +20,7 @@ func NewCartService(cartRepo *CartRepo.CartRepo) *CartService {
 func (cartService *CartService) GetPrice(id int) (*Price.Price, error) {
 	carts, err := cartService.CartRepo.GetCart(id)
 	if err != nil {
-		return nil, fmt.Errorf("GetPrice err: %w", err)
+		return nil, fmt.Errorf("getting cart for price failed: %w", err)
 	}
 	price := &Price.Price{}
 	var totalPrice float64
@@ -38,7 +38,6 @@ func (cartService *CartService) GetPrice(id int) (*Price.Price, error) {
 	if totalPrice > 5000 {
 		price.DiscountPercent = 10
 	}
-	fmt.Println(price.DiscountPercent)
 	price.FinalPrice = math.Trunc((totalPrice-totalPrice*(float64(price.DiscountPercent)/100))*100) / 100
 	price.CartId = carts.ID
 	return price, nil

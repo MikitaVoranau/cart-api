@@ -2,94 +2,177 @@ package rest
 
 import (
 	"cart-api/internal/model/CartItem"
+	"cart-api/internal/repository/CartRepo"
 	"cart-api/internal/services"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
+	"errors"
+	"go.uber.org/zap"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type CartHandler struct {
 	service *services.CartService
+	logger  *zap.Logger
 }
 
-func NewCartHandler(service *services.CartService) *CartHandler {
+func NewCartHandler(service *services.CartService, l *zap.Logger) *CartHandler {
 	return &CartHandler{
 		service,
+		l,
 	}
 }
 
 func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
 	cartItem := r.PathValue("item_id")
-	id, _ := strconv.Atoi(cartID)
-	itemID, _ := strconv.Atoi(cartItem)
-	fmt.Println(itemID)
-	item := CartItem.CartItem{Id: id, CartId: itemID}
-	h.service.CartRepo.DeleteItem(item)
-	err := json.NewEncoder(w).Encode(item)
+	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.logger.Info("error converting cartID to int", zap.Error(err))
+		http.Error(w, "incorrect ID of cart", http.StatusBadRequest)
 		return
 	}
+	itemID, err := strconv.Atoi(cartItem)
+	if err != nil {
+		h.logger.Info("error converting cartID item to int", zap.Error(err))
+		http.Error(w, "incorrect ID of cart item", http.StatusBadRequest)
+		return
+	}
+	item := CartItem.CartItem{Id: id, CartId: itemID}
+	err = h.service.CartRepo.DeleteItem(item)
+	if err != nil {
+		if errors.Is(err, CartRepo.ErrNotFound) {
+			h.logger.Info("client tried to delete non-exist item", zap.Error(err), zap.Int("cart id", id), zap.Int("cart item id", itemID))
+			http.Error(w, "cannot delete item", http.StatusNotFound)
+			return
+		}
+		h.logger.Error("error deleting item", zap.Error(err), zap.Int("cart id", id), zap.Int("cart item id", itemID))
+		http.Error(w, "cannot delete item", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.Path)
-	cart := h.service.CartRepo.CreateCart()
-	err := json.NewEncoder(w).Encode(cart)
+	cart, err := h.service.CartRepo.CreateCart()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.logger.Error("error creating cart", zap.Error(err))
+		http.Error(w, "error creating cart", http.StatusInternalServerError)
+		return
+	}
+	err = json.NewEncoder(w).Encode(cart)
+	if err != nil {
+		h.logger.Error("error encoding cart", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 }
 
 func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.Path)
 	cartID := r.PathValue("cart_id")
-	id, _ := strconv.Atoi(cartID)
-	fmt.Println("id - ", id)
-	var cartItem *CartItem.CartItem
-	fmt.Println(r.Body)
-	body, err := ioutil.ReadAll(r.Body)
+	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.logger.Info("error converting cartID to int", zap.Error(err))
+		http.Error(w, "incorrect ID of cart", http.StatusBadRequest)
 		return
 	}
-	err = json.Unmarshal(body, &cartItem)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	var cartItem CartItem.CartItem
+	if err := json.NewDecoder(r.Body).Decode(&cartItem); err != nil {
+		h.logger.Info("invalid request body", zap.Error(err))
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	fmt.Println("cart Item - ", cartItem)
 	cartItem.CartId = id
-	h.service.CartRepo.CreateItem(cartItem)
+	newID, err := h.service.CartRepo.CreateItem(cartItem)
+	if err != nil {
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "cart cannot consist more than 5 distinct products") {
+			h.logger.Info("business rule violation", zap.Error(err))
+			http.Error(w, "Cart limit reached: max 5 distinct products", http.StatusBadRequest)
+			return
+		}
+
+		if strings.Contains(errMsg, "product name cannot be blank") ||
+			strings.Contains(errMsg, "incorrect price") {
+			h.logger.Info("validation error", zap.Error(err))
+			http.Error(w, errMsg, http.StatusBadRequest) // Можно отдать текст ошибки клиенту
+			return
+		}
+
+		if strings.Contains(errMsg, "does not exist") {
+			h.logger.Info("cart not found", zap.Int("cart_id", id))
+			http.Error(w, "Cart not found", http.StatusNotFound)
+			return
+		}
+
+		h.logger.Error("failed to create item", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	cartItem.Id = newID
+	err = json.NewEncoder(w).Encode(cartItem)
+	if err != nil {
+		h.logger.Error("error encoding cartItem", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
-	id, _ := strconv.Atoi(cartID)
+	id, err := strconv.Atoi(cartID)
+	if err != nil {
+		h.logger.Info("error converting cartID to int", zap.Error(err))
+		http.Error(w, "incorrect ID of cart", http.StatusBadRequest)
+		return
+	}
 	carts, err := h.service.CartRepo.GetCart(id)
-	fmt.Println(err)
+	if err != nil {
+		var notFoundErr *CartRepo.ErrCartNotFound
+		if errors.As(err, &notFoundErr) {
+			h.logger.Info("cart not found", zap.Int("id", notFoundErr.ID))
+			http.Error(w, notFoundErr.Error(), http.StatusNotFound)
+			return
+		}
+		var notFoundItemErr *CartRepo.ErrCartItemNotFound
+		if errors.As(err, &notFoundItemErr) {
+			h.logger.Info("cart items not found", zap.Int("id", notFoundErr.ID), zap.Int("cart_id", id))
+			http.Error(w, notFoundItemErr.Error(), http.StatusNotFound)
+			return
+		}
+		h.logger.Error("error getting carts", zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	err = json.NewEncoder(w).Encode(carts)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.logger.Error("error encoding carts", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 }
 
 func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
-	id, _ := strconv.Atoi(cartID)
-	price, err := h.service.GetPrice(id)
+	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		log.Fatalf(err.Error())
+		h.logger.Info("error converting cartID to int", zap.Error(err))
+		http.Error(w, "incorrect ID of cart", http.StatusBadRequest)
+		return
+	}
+	price, err := h.service.GetPrice(id)
+	var notFoundErr *CartRepo.ErrCartNotFound
+	if errors.As(err, &notFoundErr) {
+		h.logger.Info("cart not found for price calculation", zap.Int("id", id))
+		http.Error(w, "Cart not found", http.StatusNotFound)
+		return
 	}
 	err = json.NewEncoder(w).Encode(price)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		h.logger.Error("error encoding price", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 }
