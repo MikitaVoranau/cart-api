@@ -19,8 +19,9 @@ func New(db *sqlx.DB) *CartRepo {
 
 // Delete SELECT INSERT
 func (r *CartRepo) CreateCart() (*Carts.Carts, error) {
-	var cart *Carts.Carts
-	cart.Items = []CartItem.CartItem{}
+	cart := &Carts.Carts{
+		Items: []CartItem.CartItem{},
+	}
 	err := r.DB.QueryRow("INSERT INTO carts DEFAULT VALUES RETURNING id").Scan(&cart.ID)
 	if err != nil {
 		return nil, fmt.Errorf("error inserting carts: %w", err)

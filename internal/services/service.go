@@ -1,20 +1,44 @@
 package services
 
 import (
+	"cart-api/internal/model/CartItem"
+	"cart-api/internal/model/Carts"
 	"cart-api/internal/model/Price"
-	"cart-api/internal/repository/CartRepo"
 	"fmt"
 	"math"
 )
 
-type CartService struct {
-	CartRepo *CartRepo.CartRepo
+type CartRepository interface {
+	GetCart(id int) (*Carts.Carts, error)
+	CreateCart() (*Carts.Carts, error)
+	CreateItem(item CartItem.CartItem) (int, error)
+	DeleteItem(CartItem.CartItem) error
 }
 
-func NewCartService(cartRepo *CartRepo.CartRepo) *CartService {
+type CartService struct {
+	CartRepo CartRepository
+}
+
+func NewCartService(cartRepo CartRepository) *CartService {
 	return &CartService{
 		cartRepo,
 	}
+}
+
+func (s *CartService) CreateCart() (*Carts.Carts, error) {
+	return s.CartRepo.CreateCart()
+}
+
+func (s *CartService) CreateItem(item CartItem.CartItem) (int, error) {
+	return s.CartRepo.CreateItem(item)
+}
+
+func (s *CartService) DeleteItem(item CartItem.CartItem) error {
+	return s.CartRepo.DeleteItem(item)
+}
+
+func (s *CartService) GetCart(id int) (*Carts.Carts, error) {
+	return s.CartRepo.GetCart(id)
 }
 
 func (cartService *CartService) GetPrice(id int) (*Price.Price, error) {

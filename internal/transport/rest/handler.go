@@ -2,8 +2,9 @@ package rest
 
 import (
 	"cart-api/internal/model/CartItem"
+	"cart-api/internal/model/Carts"
+	"cart-api/internal/model/Price"
 	"cart-api/internal/repository/CartRepo"
-	"cart-api/internal/services"
 	"encoding/json"
 	"errors"
 	"go.uber.org/zap"
@@ -12,12 +13,20 @@ import (
 	"strings"
 )
 
+type CartProvider interface {
+	CreateCart() (*Carts.Carts, error)
+	CreateItem(item CartItem.CartItem) (int, error)
+	DeleteItem(item CartItem.CartItem) error
+	GetCart(id int) (*Carts.Carts, error)
+	GetPrice(id int) (*Price.Price, error)
+}
+
 type CartHandler struct {
-	service *services.CartService
+	service CartProvider
 	logger  *zap.Logger
 }
 
-func NewCartHandler(service *services.CartService, l *zap.Logger) *CartHandler {
+func NewCartHandler(service CartProvider, l *zap.Logger) *CartHandler {
 	return &CartHandler{
 		service,
 		l,
@@ -39,8 +48,8 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "incorrect ID of cart item", http.StatusBadRequest)
 		return
 	}
-	item := CartItem.CartItem{Id: id, CartId: itemID}
-	err = h.service.CartRepo.DeleteItem(item)
+	item := CartItem.CartItem{Id: itemID, CartId: id}
+	err = h.service.DeleteItem(item)
 	if err != nil {
 		if errors.Is(err, CartRepo.ErrNotFound) {
 			h.logger.Info("client tried to delete non-exist item", zap.Error(err), zap.Int("cart id", id), zap.Int("cart item id", itemID))
@@ -55,7 +64,7 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
-	cart, err := h.service.CartRepo.CreateCart()
+	cart, err := h.service.CreateCart()
 	if err != nil {
 		h.logger.Error("error creating cart", zap.Error(err))
 		http.Error(w, "error creating cart", http.StatusInternalServerError)
@@ -84,7 +93,7 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cartItem.CartId = id
-	newID, err := h.service.CartRepo.CreateItem(cartItem)
+	newID, err := h.service.CreateItem(cartItem)
 	if err != nil {
 		errMsg := err.Error()
 
@@ -128,7 +137,7 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "incorrect ID of cart", http.StatusBadRequest)
 		return
 	}
-	carts, err := h.service.CartRepo.GetCart(id)
+	carts, err := h.service.GetCart(id)
 	if err != nil {
 		var notFoundErr *CartRepo.ErrCartNotFound
 		if errors.As(err, &notFoundErr) {
