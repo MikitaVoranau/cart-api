@@ -55,13 +55,11 @@ func (m *MockService) GetPrice(id int) (*Price.Price, error) {
 }
 
 func TestCartHandler_PostCart(t *testing.T) {
-	// Setup
 	logger := zaptest.NewLogger(t)
 	mockSvc := new(MockService)
 	handler := NewCartHandler(mockSvc, logger)
 
 	t.Run("Success", func(t *testing.T) {
-		// Arrange
 		expectedCart := &Carts.Carts{ID: 100}
 		mockSvc.On("CreateCart").Return(expectedCart, nil).Once()
 
@@ -72,7 +70,6 @@ func TestCartHandler_PostCart(t *testing.T) {
 		mux.HandleFunc("POST /carts", handler.PostCart)
 		mux.ServeHTTP(w, req)
 
-		// Assert
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), `"id":100`)
 		mockSvc.AssertExpectations(t)
@@ -144,7 +141,6 @@ func TestCartHandler_PostItem(t *testing.T) {
 			cartID: "99",
 			body:   bodyJSON,
 			setupMock: func() {
-				// Имитируем ошибку "не найдено" (проверка по строке в хендлере)
 				mockSvc.On("CreateItem", mock.Anything).Return(0, errors.New("something does not exist"))
 			},
 			expectedStatus: http.StatusNotFound,

@@ -33,7 +33,7 @@ func Run(logger *zap.Logger) error {
 	mux.HandleFunc("POST /carts/{cart_id}/items", cartHandler.PostItem)
 	mux.HandleFunc("GET /carts/{cart_id}", cartHandler.GetItems)
 	mux.HandleFunc("GET /carts/{cart_id}/price", cartHandler.GetPrice)
-	if err = http.ListenAndServe("localhost:3000", mux); err != nil {
+	if err = http.ListenAndServe(fmt.Sprintf(":%s", cfg.HTTPPort), mux); err != nil {
 		return fmt.Errorf("start server: %w", err)
 	}
 	return nil
