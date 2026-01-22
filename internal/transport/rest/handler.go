@@ -4,7 +4,8 @@ import (
 	"cart-api/internal/model/CartItem"
 	"cart-api/internal/model/Carts"
 	"cart-api/internal/model/Price"
-	"cart-api/internal/repository/CartRepo"
+	"cart-api/internal/repository/Cart"
+	"cart-api/internal/transport/dto"
 	"encoding/json"
 	"errors"
 	"go.uber.org/zap"
@@ -51,7 +52,7 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	item := CartItem.CartItem{Id: itemID, CartId: id}
 	err = h.service.DeleteItem(item)
 	if err != nil {
-		if errors.Is(err, CartRepo.ErrNotFound) {
+		if errors.Is(err, Cart.ErrNotFound) {
 			h.logger.Info("client tried to delete non-exist item", zap.Error(err), zap.Int("cart id", id), zap.Int("cart item id", itemID))
 			http.Error(w, "cannot delete item", http.StatusNotFound)
 			return
@@ -70,7 +71,11 @@ func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error creating cart", http.StatusInternalServerError)
 		return
 	}
-	err = json.NewEncoder(w).Encode(cart)
+	resp := dto.CartResponse{
+		ID:    cart.ID,
+		Items: []dto.ItemResponse{},
+	}
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		h.logger.Error("error encoding cart", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -86,14 +91,18 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "incorrect ID of cart", http.StatusBadRequest)
 		return
 	}
-	var cartItem CartItem.CartItem
-	if err := json.NewDecoder(r.Body).Decode(&cartItem); err != nil {
+	var req dto.AddItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.logger.Info("invalid request body", zap.Error(err))
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	cartItem.CartId = id
-	newID, err := h.service.CreateItem(cartItem)
+	itemModel := CartItem.CartItem{
+		CartId:  id,
+		Product: req.Product,
+		Price:   req.Price,
+	}
+	newID, err := h.service.CreateItem(itemModel)
 	if err != nil {
 		errMsg := err.Error()
 
@@ -120,8 +129,13 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	cartItem.Id = newID
-	err = json.NewEncoder(w).Encode(cartItem)
+	resp := dto.ItemResponse{
+		ID:      newID,
+		CartID:  id,
+		Product: itemModel.Product,
+		Price:   itemModel.Price,
+	}
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		h.logger.Error("error encoding cartItem", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -139,13 +153,13 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 	}
 	carts, err := h.service.GetCart(id)
 	if err != nil {
-		var notFoundErr *CartRepo.ErrCartNotFound
+		var notFoundErr *Cart.ErrCartNotFound
 		if errors.As(err, &notFoundErr) {
 			h.logger.Info("cart not found", zap.Int("id", notFoundErr.ID))
 			http.Error(w, notFoundErr.Error(), http.StatusNotFound)
 			return
 		}
-		var notFoundItemErr *CartRepo.ErrCartItemNotFound
+		var notFoundItemErr *Cart.ErrCartItemNotFound
 		if errors.As(err, &notFoundItemErr) {
 			h.logger.Info("cart items not found", zap.Int("id", notFoundErr.ID), zap.Int("cart_id", id))
 			http.Error(w, notFoundItemErr.Error(), http.StatusNotFound)
@@ -155,7 +169,22 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	err = json.NewEncoder(w).Encode(carts)
+	itemsDTO := make([]dto.ItemResponse, 0, len(carts.Items))
+
+	for _, item := range carts.Items {
+		itemsDTO = append(itemsDTO, dto.ItemResponse{
+			ID:      item.Id,
+			CartID:  item.CartId,
+			Product: item.Product,
+			Price:   item.Price,
+		})
+	}
+
+	resp := dto.CartResponse{
+		ID:    carts.ID,
+		Items: itemsDTO,
+	}
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		h.logger.Error("error encoding carts", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -172,13 +201,19 @@ func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	price, err := h.service.GetPrice(id)
-	var notFoundErr *CartRepo.ErrCartNotFound
+	var notFoundErr *Cart.ErrCartNotFound
 	if errors.As(err, &notFoundErr) {
 		h.logger.Info("cart not found for price calculation", zap.Int("id", id))
 		http.Error(w, "Cart not found", http.StatusNotFound)
 		return
 	}
-	err = json.NewEncoder(w).Encode(price)
+	resp := dto.PriceResponse{
+		CartID:          price.CartId,
+		TotalPrice:      price.TotalPrice,
+		DiscountPercent: price.DiscountPercent,
+		FinalPrice:      price.FinalPrice,
+	}
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		h.logger.Error("error encoding price", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

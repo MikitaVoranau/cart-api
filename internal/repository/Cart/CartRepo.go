@@ -1,4 +1,4 @@
-package CartRepo
+package Cart
 
 import (
 	"cart-api/internal/model/CartItem"
@@ -17,7 +17,6 @@ func New(db *sqlx.DB) *CartRepo {
 	return &CartRepo{db}
 }
 
-// Delete SELECT INSERT
 func (r *CartRepo) CreateCart() (*Carts.Carts, error) {
 	cart := &Carts.Carts{
 		Items: []CartItem.CartItem{},

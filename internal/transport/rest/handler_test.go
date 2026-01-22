@@ -5,7 +5,7 @@ import (
 	"cart-api/internal/model/CartItem"
 	"cart-api/internal/model/Carts"
 	"cart-api/internal/model/Price"
-	"cart-api/internal/repository/CartRepo"
+	"cart-api/internal/repository/Cart"
 	"encoding/json"
 	"errors"
 	"github.com/stretchr/testify/assert"
