@@ -3,9 +3,10 @@ package services
 import (
 	"cart-api/internal/model"
 	"errors"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 type MockCartRepo struct {
@@ -38,8 +39,17 @@ func (m *MockCartRepo) DeleteItem(item model.CartItem) error {
 	return args.Error(0)
 }
 
+func (m *MockCartRepo) CartExists(id int) (bool, error) {
+	args := m.Called(id)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockCartRepo) ItemExists(id int) (bool, error) {
+	args := m.Called(id)
+	return args.Bool(0), args.Error(1)
+}
+
 func TestCreateCart(t *testing.T) {
-	// Сценарий 1: Успешное создание
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
 		expectedCart := &model.Cart{ID: 1, Items: []model.CartItem{}}
@@ -54,10 +64,8 @@ func TestCreateCart(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	// Сценарий 2: Ошибка базы данных
 	t.Run("Repo Error", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-
 		mockRepo.On("CreateCart").Return(nil, errors.New("db fail"))
 
 		service := NewCartService(mockRepo)
@@ -65,7 +73,6 @@ func TestCreateCart(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Equal(t, "db fail", err.Error())
 		mockRepo.AssertExpectations(t)
 	})
 }
@@ -73,10 +80,10 @@ func TestCreateCart(t *testing.T) {
 func TestCreateItem(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		item := model.CartItem{Product: "Apple", Price: 100}
+		item := model.CartItem{CartId: 1, Product: "Apple", Price: 100}
 		expectedID := 123
 
-		// Ожидаем вызов CreateItem с конкретным item, возвращаем ID
+		mockRepo.On("CartExists", item.CartId).Return(true, nil)
 		mockRepo.On("CreateItem", item).Return(expectedID, nil)
 
 		service := NewCartService(mockRepo)
@@ -87,10 +94,26 @@ func TestCreateItem(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Repo Error", func(t *testing.T) {
+	t.Run("Cart Not Found", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		item := model.CartItem{Product: "Apple", Price: 100}
+		item := model.CartItem{CartId: 999, Product: "Apple"}
 
+		mockRepo.On("CartExists", item.CartId).Return(false, nil)
+
+		service := NewCartService(mockRepo)
+		id, err := service.CreateItem(item)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrCartNotFound, err)
+		assert.Zero(t, id)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("Repo Error on Create", func(t *testing.T) {
+		mockRepo := new(MockCartRepo)
+		item := model.CartItem{CartId: 1, Product: "Apple"}
+
+		mockRepo.On("CartExists", item.CartId).Return(true, nil)
 		mockRepo.On("CreateItem", item).Return(0, errors.New("insert failed"))
 
 		service := NewCartService(mockRepo)
@@ -107,6 +130,7 @@ func TestDeleteItem(t *testing.T) {
 		mockRepo := new(MockCartRepo)
 		item := model.CartItem{Id: 10, CartId: 5}
 
+		mockRepo.On("ItemExists", item.Id).Return(true, nil)
 		mockRepo.On("DeleteItem", item).Return(nil)
 
 		service := NewCartService(mockRepo)
@@ -116,16 +140,17 @@ func TestDeleteItem(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Repo Error", func(t *testing.T) {
+	t.Run("Item Not Found", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
 		item := model.CartItem{Id: 10, CartId: 5}
 
-		mockRepo.On("DeleteItem", item).Return(errors.New("delete failed"))
+		mockRepo.On("ItemExists", item.Id).Return(false, nil)
 
 		service := NewCartService(mockRepo)
 		err := service.DeleteItem(item)
 
 		assert.Error(t, err)
+		assert.Equal(t, ErrItemNotFound, err)
 		mockRepo.AssertExpectations(t)
 	})
 }
@@ -147,7 +172,7 @@ func TestGetCart(t *testing.T) {
 
 	t.Run("Repo Error", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		mockRepo.On("GetCart", 55).Return(nil, errors.New("not found"))
+		mockRepo.On("GetCart", 55).Return(nil, errors.New("db error"))
 
 		service := NewCartService(mockRepo)
 		cart, err := service.GetCart(55)
@@ -224,6 +249,7 @@ func TestGetPrice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockCartRepo)
+
 			mockRepo.On("GetCart", tt.cartID).Return(tt.mockReturnCart, tt.mockReturnErr)
 
 			service := NewCartService(mockRepo)

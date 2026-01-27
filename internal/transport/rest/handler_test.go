@@ -216,7 +216,6 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
 	t.Run("Success", func(t *testing.T) {
-		// 1. Инициализируем мок ВНУТРИ теста -> он чистый
 		mockSvc := new(MockService)
 		handler := NewCartHandler(mockSvc, logger)
 
