@@ -2,9 +2,7 @@ package rest
 
 import (
 	"bytes"
-	"cart-api/internal/model/CartItem"
-	"cart-api/internal/model/Carts"
-	"cart-api/internal/model/Price"
+	"cart-api/internal/model"
 	"cart-api/internal/repository/Cart"
 	"encoding/json"
 	"errors"
@@ -20,38 +18,38 @@ type MockService struct {
 	mock.Mock
 }
 
-func (m *MockService) CreateCart() (*Carts.Carts, error) {
+func (m *MockService) CreateCart() (*model.Cart, error) {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*Carts.Carts), args.Error(1)
+	return args.Get(0).(*model.Cart), args.Error(1)
 }
 
-func (m *MockService) CreateItem(item CartItem.CartItem) (int, error) {
+func (m *MockService) CreateItem(item model.CartItem) (int, error) {
 	args := m.Called(item)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockService) DeleteItem(item CartItem.CartItem) error {
+func (m *MockService) DeleteItem(item model.CartItem) error {
 	args := m.Called(item)
 	return args.Error(0)
 }
 
-func (m *MockService) GetCart(id int) (*Carts.Carts, error) {
+func (m *MockService) GetCart(id int) (*model.Cart, error) {
 	args := m.Called(id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*Carts.Carts), args.Error(1)
+	return args.Get(0).(*model.Cart), args.Error(1)
 }
 
-func (m *MockService) GetPrice(id int) (*Price.Price, error) {
+func (m *MockService) GetPrice(id int) (*model.Price, error) {
 	args := m.Called(id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*Price.Price), args.Error(1)
+	return args.Get(0).(*model.Price), args.Error(1)
 }
 
 func TestCartHandler_PostCart(t *testing.T) {
@@ -60,7 +58,7 @@ func TestCartHandler_PostCart(t *testing.T) {
 	handler := NewCartHandler(mockSvc, logger)
 
 	t.Run("Success", func(t *testing.T) {
-		expectedCart := &Carts.Carts{ID: 100}
+		expectedCart := &model.Cart{ID: 100}
 		mockSvc.On("CreateCart").Return(expectedCart, nil).Once()
 
 		req := httptest.NewRequest(http.MethodPost, "/carts", nil)
@@ -95,7 +93,7 @@ func TestCartHandler_PostItem(t *testing.T) {
 	mockSvc := new(MockService)
 	handler := NewCartHandler(mockSvc, logger)
 
-	validItem := CartItem.CartItem{Product: "Apple", Price: 50}
+	validItem := model.CartItem{Product: "Apple", Price: 50}
 	bodyJSON, _ := json.Marshal(validItem)
 
 	tests := []struct {
@@ -111,7 +109,7 @@ func TestCartHandler_PostItem(t *testing.T) {
 			cartID: "1",
 			body:   bodyJSON,
 			setupMock: func() {
-				mockSvc.On("CreateItem", mock.MatchedBy(func(i CartItem.CartItem) bool {
+				mockSvc.On("CreateItem", mock.MatchedBy(func(i model.CartItem) bool {
 					return i.Product == "Apple" && i.CartId == 1
 				})).Return(555, nil)
 			},
@@ -183,7 +181,7 @@ func TestCartHandler_GetItems(t *testing.T) {
 	handler := NewCartHandler(mockSvc, logger)
 
 	t.Run("Success", func(t *testing.T) {
-		cart := &Carts.Carts{ID: 1, Items: []CartItem.CartItem{{Product: "Banana"}}}
+		cart := &model.Cart{ID: 1, Items: []model.CartItem{{Product: "Banana"}}}
 		mockSvc.On("GetCart", 1).Return(cart, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/carts/1", nil)
@@ -199,7 +197,7 @@ func TestCartHandler_GetItems(t *testing.T) {
 	})
 
 	t.Run("Not Found (Custom Error Type)", func(t *testing.T) {
-		notFoundErr := &CartRepo.ErrCartNotFound{ID: 999}
+		notFoundErr := &Cart.ErrCartNotFound{ID: 999}
 		mockSvc.On("GetCart", 999).Return(nil, notFoundErr)
 
 		req := httptest.NewRequest(http.MethodGet, "/carts/999", nil)
@@ -222,7 +220,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 		mockSvc := new(MockService)
 		handler := NewCartHandler(mockSvc, logger)
 
-		mockSvc.On("DeleteItem", mock.MatchedBy(func(i CartItem.CartItem) bool {
+		mockSvc.On("DeleteItem", mock.MatchedBy(func(i model.CartItem) bool {
 			return i.CartId == 1 && i.Id == 5
 		})).Return(nil)
 
@@ -241,7 +239,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 		mockSvc := new(MockService)
 		handler := NewCartHandler(mockSvc, logger)
 
-		mockSvc.On("DeleteItem", mock.Anything).Return(CartRepo.ErrNotFound)
+		mockSvc.On("DeleteItem", mock.Anything).Return(Cart.ErrNotFound)
 
 		req := httptest.NewRequest(http.MethodDelete, "/carts/1/items/5", nil)
 		w := httptest.NewRecorder()
@@ -261,7 +259,7 @@ func TestCartHandler_GetPrice(t *testing.T) {
 	handler := NewCartHandler(mockSvc, logger)
 
 	t.Run("Success", func(t *testing.T) {
-		price := &Price.Price{FinalPrice: 1000}
+		price := &model.Price{FinalPrice: 1000}
 		mockSvc.On("GetPrice", 1).Return(price, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/carts/1/price", nil)

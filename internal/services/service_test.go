@@ -1,8 +1,7 @@
 package services
 
 import (
-	"cart-api/internal/model/CartItem"
-	"cart-api/internal/model/Carts"
+	"cart-api/internal/model"
 	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -13,28 +12,28 @@ type MockCartRepo struct {
 	mock.Mock
 }
 
-func (m *MockCartRepo) GetCart(id int) (*Carts.Carts, error) {
+func (m *MockCartRepo) GetCart(id int) (*model.Cart, error) {
 	args := m.Called(id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*Carts.Carts), args.Error(1)
+	return args.Get(0).(*model.Cart), args.Error(1)
 }
 
-func (m *MockCartRepo) CreateCart() (*Carts.Carts, error) {
+func (m *MockCartRepo) CreateCart() (*model.Cart, error) {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*Carts.Carts), args.Error(1)
+	return args.Get(0).(*model.Cart), args.Error(1)
 }
 
-func (m *MockCartRepo) CreateItem(item CartItem.CartItem) (int, error) {
+func (m *MockCartRepo) CreateItem(item model.CartItem) (int, error) {
 	args := m.Called(item)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockCartRepo) DeleteItem(item CartItem.CartItem) error {
+func (m *MockCartRepo) DeleteItem(item model.CartItem) error {
 	args := m.Called(item)
 	return args.Error(0)
 }
@@ -43,7 +42,7 @@ func TestCreateCart(t *testing.T) {
 	// Сценарий 1: Успешное создание
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		expectedCart := &Carts.Carts{ID: 1, Items: []CartItem.CartItem{}}
+		expectedCart := &model.Cart{ID: 1, Items: []model.CartItem{}}
 
 		mockRepo.On("CreateCart").Return(expectedCart, nil)
 
@@ -74,7 +73,7 @@ func TestCreateCart(t *testing.T) {
 func TestCreateItem(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		item := CartItem.CartItem{Product: "Apple", Price: 100}
+		item := model.CartItem{Product: "Apple", Price: 100}
 		expectedID := 123
 
 		// Ожидаем вызов CreateItem с конкретным item, возвращаем ID
@@ -90,7 +89,7 @@ func TestCreateItem(t *testing.T) {
 
 	t.Run("Repo Error", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		item := CartItem.CartItem{Product: "Apple", Price: 100}
+		item := model.CartItem{Product: "Apple", Price: 100}
 
 		mockRepo.On("CreateItem", item).Return(0, errors.New("insert failed"))
 
@@ -106,7 +105,7 @@ func TestCreateItem(t *testing.T) {
 func TestDeleteItem(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		item := CartItem.CartItem{Id: 10, CartId: 5}
+		item := model.CartItem{Id: 10, CartId: 5}
 
 		mockRepo.On("DeleteItem", item).Return(nil)
 
@@ -119,7 +118,7 @@ func TestDeleteItem(t *testing.T) {
 
 	t.Run("Repo Error", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		item := CartItem.CartItem{Id: 10, CartId: 5}
+		item := model.CartItem{Id: 10, CartId: 5}
 
 		mockRepo.On("DeleteItem", item).Return(errors.New("delete failed"))
 
@@ -134,7 +133,7 @@ func TestDeleteItem(t *testing.T) {
 func TestGetCart(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := new(MockCartRepo)
-		expectedCart := &Carts.Carts{ID: 55}
+		expectedCart := &model.Cart{ID: 55}
 
 		mockRepo.On("GetCart", 55).Return(expectedCart, nil)
 
@@ -163,7 +162,7 @@ func TestGetPrice(t *testing.T) {
 	tests := []struct {
 		name           string
 		cartID         int
-		mockReturnCart *Carts.Carts
+		mockReturnCart *model.Cart
 		mockReturnErr  error
 		expectedPrice  float64
 		expectedDisc   int
@@ -172,9 +171,9 @@ func TestGetPrice(t *testing.T) {
 		{
 			name:   "No Discount",
 			cartID: 1,
-			mockReturnCart: &Carts.Carts{
+			mockReturnCart: &model.Cart{
 				ID: 1,
-				Items: []CartItem.CartItem{
+				Items: []model.CartItem{
 					{Price: 100}, {Price: 200},
 				},
 			},
@@ -186,9 +185,9 @@ func TestGetPrice(t *testing.T) {
 		{
 			name:   "Quantity Discount 5%",
 			cartID: 2,
-			mockReturnCart: &Carts.Carts{
+			mockReturnCart: &model.Cart{
 				ID: 2,
-				Items: []CartItem.CartItem{
+				Items: []model.CartItem{
 					{Price: 100}, {Price: 100}, {Price: 100}, {Price: 100},
 				},
 			},
@@ -200,9 +199,9 @@ func TestGetPrice(t *testing.T) {
 		{
 			name:   "Amount Discount 10%",
 			cartID: 3,
-			mockReturnCart: &Carts.Carts{
+			mockReturnCart: &model.Cart{
 				ID: 3,
-				Items: []CartItem.CartItem{
+				Items: []model.CartItem{
 					{Price: 6000},
 				},
 			},

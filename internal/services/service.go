@@ -1,18 +1,18 @@
 package services
 
 import (
-	"cart-api/internal/model/CartItem"
-	"cart-api/internal/model/Carts"
-	"cart-api/internal/model/Price"
+	"cart-api/internal/model"
 	"fmt"
 	"math"
 )
 
 type CartRepository interface {
-	GetCart(id int) (*Carts.Carts, error)
-	CreateCart() (*Carts.Carts, error)
-	CreateItem(item CartItem.CartItem) (int, error)
-	DeleteItem(CartItem.CartItem) error
+	GetCart(id int) (*model.Cart, error)
+	CreateCart() (*model.Cart, error)
+	CreateItem(model.CartItem) (int, error)
+	DeleteItem(model.CartItem) error
+	CartExists(cartID int) (bool, error)
+	ItemExists(itemID int) (bool, error)
 }
 
 type CartService struct {
@@ -25,28 +25,46 @@ func NewCartService(cartRepo CartRepository) *CartService {
 	}
 }
 
-func (s *CartService) CreateCart() (*Carts.Carts, error) {
+func (s *CartService) CreateCart() (*model.Cart, error) {
 	return s.CartRepo.CreateCart()
 }
 
-func (s *CartService) CreateItem(item CartItem.CartItem) (int, error) {
+func (s *CartService) CreateItem(item model.CartItem) (int, error) {
+	exists, err := s.CartRepo.CartExists(item.CartId)
+	if err != nil {
+		return 0, fmt.Errorf("failed to check cart existence: %w", err)
+	}
+	if !exists {
+		return 0, ErrCartNotFound
+	}
 	return s.CartRepo.CreateItem(item)
 }
 
-func (s *CartService) DeleteItem(item CartItem.CartItem) error {
+func (s *CartService) DeleteItem(item model.CartItem) error {
+	exists, err := s.CartRepo.ItemExists(item.Id)
+	if err != nil {
+		return fmt.Errorf("failed to check item existence: %w", err)
+	}
+	if !exists {
+		return ErrItemNotFound
+	}
 	return s.CartRepo.DeleteItem(item)
 }
 
-func (s *CartService) GetCart(id int) (*Carts.Carts, error) {
-	return s.CartRepo.GetCart(id)
+func (s *CartService) GetCart(id int) (*model.Cart, error) {
+	cart, err := s.CartRepo.GetCart(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart: %w", err)
+	}
+	return cart, nil
 }
 
-func (cartService *CartService) GetPrice(id int) (*Price.Price, error) {
-	carts, err := cartService.CartRepo.GetCart(id)
+func (s *CartService) GetPrice(id int) (*model.Price, error) {
+	carts, err := s.CartRepo.GetCart(id)
 	if err != nil {
 		return nil, fmt.Errorf("getting cart for price failed: %w", err)
 	}
-	price := &Price.Price{}
+	price := &model.Price{}
 	var totalPrice float64
 	var totalNumbers int
 

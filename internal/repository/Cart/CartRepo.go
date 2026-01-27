@@ -1,8 +1,8 @@
 package Cart
 
 import (
-	"cart-api/internal/model/CartItem"
-	"cart-api/internal/model/Carts"
+	"cart-api/internal/model"
+	"cart-api/internal/repository/dao"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -17,27 +17,28 @@ func New(db *sqlx.DB) *CartRepo {
 	return &CartRepo{db}
 }
 
-func (r *CartRepo) CreateCart() (*Carts.Carts, error) {
-	cart := &Carts.Carts{
-		Items: []CartItem.CartItem{},
-	}
-	err := r.DB.QueryRow("INSERT INTO carts DEFAULT VALUES RETURNING id").Scan(&cart.ID)
+func (r *CartRepo) CreateCart() (*model.Cart, error) {
+	var cartDb dao.CartDb
+	err := r.DB.QueryRow("INSERT INTO carts DEFAULT VALUES RETURNING id").Scan(&cartDb.ID)
 	if err != nil {
 		return nil, fmt.Errorf("error inserting carts: %w", err)
 	}
-	return cart, nil
+	return cartDb.ToDomain(), nil
 }
 
-func (r *CartRepo) CreateItem(item CartItem.CartItem) (int, error) {
-	err := r.DB.QueryRow("SELECT add_item_to_cart ($1, $2, $3)", item.CartId, item.Product, item.Price).Scan(&item.Id)
+func (r *CartRepo) CreateItem(item model.CartItem) (int, error) {
+	itemDb := dao.NewCartItemDb(item)
+	var newID int
+	err := r.DB.QueryRow("SELECT add_item_to_cart ($1, $2, $3)", itemDb.CartID, itemDb.Product, itemDb.Price).Scan(&newID)
 	if err != nil {
 		return 0, err
 	}
-	return item.Id, nil
+	return newID, nil
 }
 
-func (r *CartRepo) DeleteItem(item CartItem.CartItem) error {
-	res, err := r.DB.Exec("DELETE FROM cart_item WHERE id = $1 AND cart_id = $2", item.Id, item.CartId)
+func (r *CartRepo) DeleteItem(item model.CartItem) error {
+	itemDb := dao.NewCartItemDb(item)
+	res, err := r.DB.Exec("DELETE FROM cart_item WHERE id = $1 AND cart_id = $2", itemDb.ID, itemDb.CartID)
 	if err != nil {
 		return fmt.Errorf("could not delete item: %w", err)
 	}
@@ -48,30 +49,49 @@ func (r *CartRepo) DeleteItem(item CartItem.CartItem) error {
 	return nil
 }
 
-func (r *CartRepo) GetCart(id int) (*Carts.Carts, error) {
-	carts := &Carts.Carts{}
-	err := r.DB.QueryRow("SELECT id FROM carts WHERE id = $1", id).Scan(&carts.ID)
+func (r *CartRepo) GetCart(id int) (*model.Cart, error) {
+	var cartDb dao.CartDb
+	err := r.DB.QueryRow("SELECT id FROM carts WHERE id = $1", id).Scan(&cartDb.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &ErrCartNotFound{id}
 		}
 		return nil, fmt.Errorf("GetCart: query cart error: %w", err)
 	}
-	rows, err := r.DB.Query("SELECT * FROM cart_item WHERE cart_id = $1", carts.ID)
+	cart := cartDb.ToDomain()
+	rows, err := r.DB.Query("SELECT id, cart_id, product, price FROM cart_item WHERE cart_id = $1", cart.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ErrCartItemNotFound{id, carts.ID}
+			return nil, &ErrCartItemNotFound{id, cart.ID}
 		}
 		return nil, fmt.Errorf("GetCart: query cart item error: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var item CartItem.CartItem
-		if err = rows.Scan(&item.Id, &item.CartId, &item.Product, &item.Price); err != nil {
+		var itemDb dao.CartItemDb
+		if err = rows.Scan(&itemDb.ID, &itemDb.CartID, &itemDb.Product, &itemDb.Price); err != nil {
 			return nil, fmt.Errorf("GetCart: scan item error: %w", err)
 		}
-		carts.Items = append(carts.Items, item)
+		cart.Items = append(cart.Items, itemDb.ToDomain())
 	}
-	return carts, nil
+	return cart, nil
+}
+
+func (r *CartRepo) CartExists(cartID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM carts WHERE id = $1)", cartID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("CartExists: cart isn't found: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *CartRepo) ItemExists(itemID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM cart_item WHERE id = $1)", itemID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("ItemExists: item isn't exist	: %w", err)
+	}
+	return exists, nil
 }
