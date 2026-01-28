@@ -1,4 +1,4 @@
-package CartRepo
+package Cart
 
 import (
 	"errors"
