@@ -6,12 +6,15 @@ import (
 	"cart-api/internal/services"
 	"cart-api/internal/transport/rest"
 	"cart-api/pkg/database/postgres"
+	"context"
+	"errors"
 	"fmt"
 	"go.uber.org/zap"
 	"net/http"
+	"time"
 )
 
-func Run(logger *zap.Logger) error {
+func Run(ctx context.Context, logger *zap.Logger) error {
 	cfg, err := config.New()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -36,8 +39,30 @@ func Run(logger *zap.Logger) error {
 	mux.HandleFunc("GET /carts/{cart_id}", cartHandler.GetItems)
 	mux.HandleFunc("GET /carts/{cart_id}/price", cartHandler.GetPrice)
 
-	if err = http.ListenAndServe(fmt.Sprintf(":%s", cfg.HTTPPort), mux); err != nil {
-		return fmt.Errorf("start server: %w", err)
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%s", cfg.HTTPPort),
+		Handler: mux,
 	}
+
+	go func() {
+		logger.Info("starting server", zap.String("port", cfg.HTTPPort))
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+
+			logger.Fatal("listen and serve failed", zap.Error(err))
+		}
+	}()
+	<-ctx.Done()
+
+	logger.Info("shutting down server...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err = server.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("server forced to shutdown: %w", err)
+	}
+
+	logger.Info("server successfully shutdown...")
+
 	return nil
 }
