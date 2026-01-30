@@ -3,22 +3,24 @@ package rest
 import (
 	"cart-api/internal/model"
 	"cart-api/internal/repository/Cart"
+	"cart-api/internal/services"
 	"cart-api/internal/transport/dto"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
 	"net/http"
 	"strconv"
-	"strings"
+	"time"
 )
 
 type CartProvider interface {
-	CreateCart() (*model.Cart, error)
-	CreateItem(item model.CartItem) (int, error)
-	DeleteItem(item model.CartItem) error
-	GetCart(id int) (*model.Cart, error)
-	GetPrice(id int) (*model.Price, error)
+	CreateCart(context.Context) (*model.Cart, error)
+	CreateItem(context.Context, model.CartItem) (int, error)
+	DeleteItem(context.Context, model.CartItem) error
+	GetCart(context.Context, int) (*model.Cart, error)
+	GetPrice(context.Context, int) (*model.Price, error)
 }
 
 type CartHandler struct {
@@ -34,6 +36,9 @@ func NewCartHandler(service CartProvider, l *zap.Logger) *CartHandler {
 }
 
 func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	cartID := r.PathValue("cart_id")
 	cartItem := r.PathValue("item_id")
 	id, err := strconv.Atoi(cartID)
@@ -49,7 +54,7 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item := model.CartItem{Id: itemID, CartId: id}
-	err = h.service.DeleteItem(item)
+	err = h.service.DeleteItem(ctx, item)
 	if err != nil {
 		if errors.Is(err, Cart.ErrNotFound) {
 			h.logger.Info("attempt to delete non-existent item",
@@ -75,7 +80,10 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
-	cart, err := h.service.CreateCart()
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	cart, err := h.service.CreateCart(ctx)
 	if err != nil {
 		h.logger.Error("error creating cart", zap.Error(err))
 		http.Error(w, "Failed to create new cart", http.StatusInternalServerError)
@@ -94,6 +102,9 @@ func (h *CartHandler) PostCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	cartID := r.PathValue("cart_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
@@ -112,32 +123,21 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 		Product: req.Product,
 		Price:   req.Price,
 	}
-	newID, err := h.service.CreateItem(itemModel)
+	newID, err := h.service.CreateItem(ctx, itemModel)
 	if err != nil {
-		errMsg := err.Error()
 
-		if strings.Contains(errMsg, "cart cannot consist more than 5 distinct products") {
+		if errors.Is(err, services.ErrInvalidProduct) ||
+			errors.Is(err, services.ErrInvalidPrice) ||
+			errors.Is(err, services.ErrReachCartLimit) {
 			h.logger.Info("business rule violation",
 				zap.Error(err),
 				zap.Int("cart_id", id),
 			)
-			http.Error(w, "Cart limit reached: max 5 distinct products", http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if strings.Contains(errMsg, "product name cannot be blank") ||
-			strings.Contains(errMsg, "incorrect price") {
-			h.logger.Info("validation error",
-				zap.Error(err),
-				zap.Int("cart_id", id),
-				zap.String("product", req.Product),
-				zap.Float64("price", req.Price),
-			)
-			http.Error(w, errMsg, http.StatusBadRequest)
-			return
-		}
-
-		if strings.Contains(errMsg, "does not exist") {
+		if errors.Is(err, services.ErrCartNotFound) {
 			h.logger.Info("cart not found",
 				zap.Int("cart_id", id),
 			)
@@ -169,6 +169,9 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	cartID := r.PathValue("cart_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
@@ -176,7 +179,7 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("invalid cart ID; '%s' must be an integer", cartID), http.StatusBadRequest)
 		return
 	}
-	carts, err := h.service.GetCart(id)
+	carts, err := h.service.GetCart(ctx, id)
 	if err != nil {
 		var notFoundErr *Cart.ErrCartNotFound
 		if errors.As(err, &notFoundErr) {
@@ -225,6 +228,9 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	cartID := r.PathValue("cart_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
@@ -232,7 +238,7 @@ func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid cart_id '%s': must be an integer", cartID), http.StatusBadRequest)
 		return
 	}
-	price, err := h.service.GetPrice(id)
+	price, err := h.service.GetPrice(ctx, id)
 	if err != nil {
 		var notFoundErr *Cart.ErrCartNotFound
 		if errors.As(err, &notFoundErr) {

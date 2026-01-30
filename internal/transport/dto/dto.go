@@ -12,6 +12,11 @@ type ItemResponse struct {
 	Price   float64 `json:"price"`
 }
 
+type DeleteItemRequest struct {
+	ID     int `json:"id"`
+	CartID int `json:"cart_id"`
+}
+
 type CartResponse struct {
 	ID    int            `json:"id"`
 	Items []ItemResponse `json:"items"`
