@@ -43,13 +43,13 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	cartItem := r.PathValue("item_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		h.logger.Warn("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
+		h.logger.Error("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
 		http.Error(w, fmt.Sprintf("invalid cart ID; '%s'must be an integer", cartID), http.StatusBadRequest)
 		return
 	}
 	itemID, err := strconv.Atoi(cartItem)
 	if err != nil {
-		h.logger.Warn("failed to parse cart item", zap.Error(err), zap.String("input", cartItem))
+		h.logger.Error("failed to parse cart item", zap.Error(err), zap.String("input", cartItem))
 		http.Error(w, fmt.Sprintf("invalid item ID; '%s' must be an integer", cartItem), http.StatusBadRequest)
 		return
 	}
@@ -108,13 +108,13 @@ func (h *CartHandler) PostItem(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		h.logger.Warn("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
+		h.logger.Error("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
 		http.Error(w, fmt.Sprintf("invalid cart ID; '%s' must be an integer", cartID), http.StatusBadRequest)
 		return
 	}
 	var req dto.AddItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Warn("invalid request body", zap.Error(err))
+		h.logger.Error("invalid request body", zap.Error(err))
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -175,7 +175,7 @@ func (h *CartHandler) GetItems(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		h.logger.Warn("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
+		h.logger.Error("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
 		http.Error(w, fmt.Sprintf("invalid cart ID; '%s' must be an integer", cartID), http.StatusBadRequest)
 		return
 	}
@@ -234,7 +234,7 @@ func (h *CartHandler) GetPrice(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("cart_id")
 	id, err := strconv.Atoi(cartID)
 	if err != nil {
-		h.logger.Warn("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
+		h.logger.Error("failed to parse cart id", zap.Error(err), zap.String("input", cartID))
 		http.Error(w, fmt.Sprintf("Invalid cart_id '%s': must be an integer", cartID), http.StatusBadRequest)
 		return
 	}
