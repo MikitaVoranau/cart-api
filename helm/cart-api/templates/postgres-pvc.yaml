@@ -1,0 +1,21 @@
+{{- if and .Values.postgres.enabled .Values.postgres.persistence.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "cart-api.fullname" . }}-postgres-pvc
+  labels:
+    {{- include "cart-api.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.postgres.persistence.useStaticPV }}
+  storageClassName: {{ .Values.postgres.persistence.staticPV.storageClassName | quote }}
+  volumeName: {{ include "cart-api.fullname" . }}-postgres-pv
+  {{- else }}
+  storageClassName: {{ .Values.postgres.persistence.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.postgres.persistence.size | quote }}
+{{- end }}
+

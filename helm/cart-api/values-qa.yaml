@@ -1,0 +1,21 @@
+service:
+  type: NodePort
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 55
+
+ingress:
+  enabled: false
+  host: cart-api-qa.local
+

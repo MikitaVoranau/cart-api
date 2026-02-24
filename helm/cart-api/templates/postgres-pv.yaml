@@ -1,0 +1,17 @@
+{{- if and .Values.postgres.enabled .Values.postgres.persistence.enabled .Values.postgres.persistence.useStaticPV -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "cart-api.fullname" . }}-postgres-pv
+  labels:
+    {{- include "cart-api.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.postgres.persistence.size | quote }}
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.postgres.persistence.staticPV.storageClassName | quote }}
+  hostPath:
+    path: {{ printf "%s/%s-postgres" .Values.postgres.persistence.staticPV.hostPathBase (include "cart-api.fullname" .) | quote }}
+{{- end }}
+
