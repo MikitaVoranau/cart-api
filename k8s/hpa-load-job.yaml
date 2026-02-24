@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cart-api-load
+  namespace: test
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: cart-api-load
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: load
+          image: curlimages/curl:8.7.1
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Starting load against http://cart-api/carts ..."
+              for i in $(seq 1 20000); do
+                curl -s -o /dev/null -X POST http://cart-api/carts &
+                if [ $((i % 50)) -eq 0 ]; then
+                  wait
+                fi
+              done
+              wait
+              echo "Done"
+
