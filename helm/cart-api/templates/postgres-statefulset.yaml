@@ -7,7 +7,7 @@ metadata:
     {{- include "cart-api.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "cart-api.fullname" . }}-postgres
-  replicas: 1
+  replicas: {{ .Values.postgres.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/component: postgres
@@ -49,4 +49,3 @@ spec:
             claimName: {{ include "cart-api.fullname" . }}-postgres-pvc
         {{- end }}
 {{- end }}
-

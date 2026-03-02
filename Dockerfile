@@ -11,6 +11,8 @@ RUN go build -o ./bin/app cmd/main.go
 
 FROM alpine
 
-COPY --from=builder /usr/src/app/bin/app /
+COPY --from=builder /usr/src/app/bin/app ./cart-api
 
-CMD ["/app"]
+COPY --from=builder /usr/src/app/migrations ./migrations
+
+CMD ["./cart-api"]

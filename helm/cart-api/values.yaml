@@ -45,8 +45,23 @@ ingress:
   host: cart-api.local
   path: /
 
+replicaCount: 1
+
+readinessProbe:
+  initialDelaySeconds: 2
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 6
+
+livenessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
 postgres:
   enabled: true
+  replicas: 1
   image: postgres:16-alpine
   db: carts
   user: postgres
