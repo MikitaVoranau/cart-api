@@ -1,0 +1,21 @@
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+hpa:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
+
+ingress:
+  enabled: true
+  host: cart-api.example.com
+

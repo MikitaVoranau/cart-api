@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-postgres
+  namespace: test
+spec:
+  selector:
+    app: cart-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+
